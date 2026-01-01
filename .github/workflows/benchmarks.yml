@@ -73,7 +73,7 @@ jobs:
           alert-comment-cc-users: '@maintainers'
 
       - name: Upload benchmark artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
           path: |
@@ -131,7 +131,7 @@ jobs:
 
       - name: Upload comparison results
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-comparison
           path: comparison.txt
@@ -173,7 +173,7 @@ jobs:
           done
 
       - name: Upload flamegraphs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: flamegraphs
           path: flamegraph_*.svg

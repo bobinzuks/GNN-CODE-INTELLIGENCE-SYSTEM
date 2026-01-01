@@ -60,7 +60,7 @@ jobs:
             --count ${{ github.event.inputs.target_count || 1000 }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: code-samples-${{ matrix.language }}-batch-${{ matrix.batch }}
           path: data/mega-samples/${{ matrix.language }}/
@@ -142,7 +142,7 @@ jobs:
             --count ${{ github.event.inputs.target_count || 1000 }}
 
       - name: Upload generated tests
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: tests-${{ matrix.test_type }}-${{ matrix.module }}
           path: mega-tests/generated/
@@ -177,7 +177,7 @@ jobs:
             --count 100
 
       - name: Upload patterns
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: patterns-${{ matrix.language }}-${{ matrix.category }}
           path: crates/gnn-experts/src/mega-patterns/generated/
@@ -192,7 +192,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: artifacts/
 
@@ -223,7 +223,7 @@ jobs:
           "
 
       - name: Upload manifest
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: dataset-manifest
           path: dataset-manifest.json
