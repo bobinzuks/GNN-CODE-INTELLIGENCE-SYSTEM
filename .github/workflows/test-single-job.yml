@@ -1,0 +1,20 @@
+name: Test Single Job
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test basic execution
+        run: |
+          echo "Testing if GitHub Actions works..."
+          date
+          echo "Current directory: $(pwd)"
+          ls -la
+          echo "Test completed successfully!"
