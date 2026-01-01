@@ -36,7 +36,7 @@ jobs:
 
       - name: Trigger parallel workflows
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           WORKFLOWS=${{ github.event.inputs.parallel_workflows }}
 
@@ -76,7 +76,7 @@ jobs:
 
       - name: Monitor progress
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           echo "Monitoring workflow runs..."
           echo ""
