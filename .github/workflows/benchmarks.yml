@@ -1,0 +1,180 @@
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  benchmark:
+    name: Run Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache target directory
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Run benchmarks
+        run: |
+          cargo bench --all --no-fail-fast -- --output-format bencher | tee benchmark_output.txt
+
+      - name: Store benchmark results
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: benchmark_output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          alert-threshold: '150%'
+          comment-on-alert: true
+          fail-on-alert: false
+          alert-comment-cc-users: '@maintainers'
+
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-results
+          path: |
+            target/criterion/
+            benchmark_output.txt
+          retention-days: 30
+
+  regression-check:
+    name: Regression Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Restore benchmark cache
+        uses: actions/cache@v3
+        with:
+          path: target/criterion
+          key: ${{ runner.os }}-benchmark-baseline-${{ github.base_ref || 'main' }}
+
+      - name: Run baseline benchmarks
+        if: github.event_name == 'pull_request'
+        run: |
+          git checkout ${{ github.base_ref }}
+          cargo bench --all -- --save-baseline base
+
+      - name: Checkout PR branch
+        if: github.event_name == 'pull_request'
+        run: |
+          git checkout ${{ github.head_ref }}
+
+      - name: Run comparison benchmarks
+        if: github.event_name == 'pull_request'
+        run: |
+          cargo bench --all -- --baseline base > comparison.txt
+
+      - name: Check for regressions
+        if: github.event_name == 'pull_request'
+        run: |
+          if grep -q "Performance has regressed" comparison.txt; then
+            echo "::warning::Performance regression detected"
+            cat comparison.txt
+          fi
+
+      - name: Upload comparison results
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-comparison
+          path: comparison.txt
+          retention-days: 14
+
+  flamegraph:
+    name: Generate Flamegraphs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Install flamegraph
+        run: cargo install flamegraph
+
+      - name: Install perf
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r)
+
+      - name: Set perf paranoid level
+        run: |
+          echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+
+      - name: Generate flamegraphs
+        run: |
+          for bench in parsing_benchmarks gnn_benchmarks pattern_detection_benchmarks; do
+            sudo -E cargo flamegraph --bench $bench -o flamegraph_$bench.svg -- --bench || true
+          done
+
+      - name: Upload flamegraphs
+        uses: actions/upload-artifact@v3
+        with:
+          name: flamegraphs
+          path: flamegraph_*.svg
+          retention-days: 30

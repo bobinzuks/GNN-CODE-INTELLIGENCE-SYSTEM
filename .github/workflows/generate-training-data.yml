@@ -1,0 +1,266 @@
+name: Generate Training Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      dataset_type:
+        description: 'Type of dataset to generate'
+        required: true
+        type: choice
+        options:
+          - code-samples
+          - example-repos
+          - test-suite
+          - pattern-detectors
+          - all
+      batch_size:
+        description: 'Batch size for generation'
+        required: false
+        default: '100'
+      target_count:
+        description: 'Target number to generate'
+        required: false
+        default: '1000'
+
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  generate-code-samples:
+    if: github.event.inputs.dataset_type == 'code-samples' || github.event.inputs.dataset_type == 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    strategy:
+      matrix:
+        language: [rust, python, javascript, typescript, go, java, cpp, c, swift]
+        batch: [1, 2, 3, 4, 5]
+      max-parallel: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r data/mega-samples/requirements.txt || true
+
+      - name: Generate code samples for ${{ matrix.language }}
+        run: |
+          cd data/mega-samples
+          python3 fast_generator.py \
+            --language ${{ matrix.language }} \
+            --batch ${{ matrix.batch }} \
+            --count ${{ github.event.inputs.target_count || 1000 }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-samples-${{ matrix.language }}-batch-${{ matrix.batch }}
+          path: data/mega-samples/${{ matrix.language }}/
+          retention-days: 30
+
+  generate-example-repos:
+    if: github.event.inputs.dataset_type == 'example-repos' || github.event.inputs.dataset_type == 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 720
+
+    strategy:
+      matrix:
+        category: [open-source, ecommerce, crm, microservices, libraries]
+        batch: [1, 2, 3, 4]
+      max-parallel: 4
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Git LFS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
+          git lfs install
+
+      - name: Generate repositories - ${{ matrix.category }}
+        run: |
+          cd examples/mega-repos
+          python3 generate_mega_repos.py \
+            --category ${{ matrix.category }} \
+            --batch ${{ matrix.batch }} \
+            --count ${{ github.event.inputs.batch_size || 100 }}
+
+      - name: Create release archive
+        run: |
+          cd examples/mega-repos
+          tar -czf repos-${{ matrix.category }}-batch-${{ matrix.batch }}.tar.gz repo-*
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: training-data-v${{ github.run_number }}
+          files: examples/mega-repos/repos-*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  generate-tests:
+    if: github.event.inputs.dataset_type == 'test-suite' || github.event.inputs.dataset_type == 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    strategy:
+      matrix:
+        test_type: [unit, integration, e2e, fuzz, performance, security]
+        module: [sweep, parser, gnn-core, gnn-head, gnn-experts]
+      max-parallel: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Generate ${{ matrix.test_type }} tests for ${{ matrix.module }}
+        run: |
+          cd mega-tests
+          cargo run --bin generate-tests -- \
+            --type ${{ matrix.test_type }} \
+            --module ${{ matrix.module }} \
+            --count ${{ github.event.inputs.target_count || 1000 }}
+
+      - name: Upload generated tests
+        uses: actions/upload-artifact@v3
+        with:
+          name: tests-${{ matrix.test_type }}-${{ matrix.module }}
+          path: mega-tests/generated/
+          retention-days: 30
+
+  generate-pattern-detectors:
+    if: github.event.inputs.dataset_type == 'pattern-detectors' || github.event.inputs.dataset_type == 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    strategy:
+      matrix:
+        language: [rust, python, javascript, typescript, go, java, cpp, c]
+        category: [security, performance, memory, concurrency]
+      max-parallel: 8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Generate pattern detectors
+        run: |
+          cd crates/gnn-experts/src/mega-patterns
+          cargo run --bin generate-patterns -- \
+            --language ${{ matrix.language }} \
+            --category ${{ matrix.category }} \
+            --count 100
+
+      - name: Upload patterns
+        uses: actions/upload-artifact@v3
+        with:
+          name: patterns-${{ matrix.language }}-${{ matrix.category }}
+          path: crates/gnn-experts/src/mega-patterns/generated/
+          retention-days: 30
+
+  publish-dataset:
+    needs: [generate-code-samples, generate-example-repos, generate-tests, generate-pattern-detectors]
+    if: always() && (github.event.inputs.dataset_type == 'all' || github.event_name == 'schedule')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts/
+
+      - name: Create dataset manifest
+        run: |
+          python3 -c "
+          import os
+          import json
+          from datetime import datetime
+
+          manifest = {
+            'version': '${{ github.run_number }}',
+            'generated_at': datetime.utcnow().isoformat(),
+            'datasets': {}
+          }
+
+          for root, dirs, files in os.walk('artifacts'):
+            for file in files:
+              path = os.path.join(root, file)
+              size = os.path.getsize(path)
+              manifest['datasets'][file] = {
+                'size': size,
+                'path': path
+              }
+
+          with open('dataset-manifest.json', 'w') as f:
+            json.dump(manifest, f, indent=2)
+          "
+
+      - name: Upload manifest
+        uses: actions/upload-artifact@v3
+        with:
+          name: dataset-manifest
+          path: dataset-manifest.json
+
+      - name: Create release with all datasets
+        uses: softprops/action-gh-release@v1
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: dataset-v${{ github.run_number }}
+          name: Training Dataset v${{ github.run_number }}
+          body: |
+            ## GNN Code Intelligence Training Dataset
+
+            Generated: ${{ github.event.head_commit.timestamp }}
+            Workflow: ${{ github.workflow }}
+
+            ### Contents
+            - Code samples across 9 languages
+            - Example repositories with git history
+            - Comprehensive test suites
+            - Pattern detectors
+
+            See dataset-manifest.json for complete inventory.
+          files: |
+            artifacts/**/*
+            dataset-manifest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    needs: [publish-dataset]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send notification
+        run: |
+          echo "Dataset generation completed"
+          echo "Status: ${{ job.status }}"
+          echo "Run number: ${{ github.run_number }}"

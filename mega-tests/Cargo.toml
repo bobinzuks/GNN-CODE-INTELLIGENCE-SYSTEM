@@ -1,0 +1,63 @@
+[package]
+name = "mega-tests"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Core testing dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+rayon = { workspace = true }
+rand = { workspace = true }
+
+# Testing frameworks
+quickcheck = "1.0"
+proptest = "1.4"
+arbitrary = "1.3"
+cargo-fuzz = "0.11"
+
+# Coverage and mutation testing
+cargo-tarpaulin = "0.27"
+cargo-mutants = "24.2"
+
+# Performance testing
+criterion = { workspace = true, features = ["html_reports", "async_tokio"] }
+dhat = "0.3"
+
+# Database for results
+rusqlite = { version = "0.30", features = ["bundled"] }
+
+# Utilities
+walkdir = "2.4"
+chrono = { workspace = true }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Project dependencies
+gnn-core = { path = "../crates/gnn-core" }
+parser = { path = "../crates/parser" }
+gnn-head = { path = "../crates/gnn-head" }
+gnn-experts = { path = "../crates/gnn-experts" }
+wasm-runtime = { path = "../crates/wasm-runtime" }
+llm-bridge = { path = "../crates/llm-bridge" }
+sweep = { path = "../crates/sweep" }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[[bin]]
+name = "generate-tests"
+path = "generators/main.rs"
+
+[[bin]]
+name = "run-mega-tests"
+path = "infrastructure/runner.rs"
+
+[[bin]]
+name = "coverage-aggregator"
+path = "infrastructure/coverage.rs"
+
+[lib]
+name = "mega_tests"
+path = "infrastructure/lib.rs"

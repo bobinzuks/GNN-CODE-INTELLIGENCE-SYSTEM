@@ -1,0 +1,34 @@
+[package]
+name = "llm-bridge"
+version = "0.1.0"
+edition = "2021"
+authors = ["GNN Code Intelligence Team"]
+description = "LLM integration layer bridging GNN embeddings to any LLM API"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "llm-bridge-cli"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+reqwest = { version = "0.11", features = ["json", "stream"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+async-trait = "0.1"
+thiserror = "1.0"
+futures = "0.3"
+bytes = "1.5"
+rand = "0.8"
+
+# Local dependencies
+gnn-core = { path = "../gnn-core" }
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockito = "1.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

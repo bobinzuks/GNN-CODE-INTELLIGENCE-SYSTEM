@@ -1,0 +1,68 @@
+[package]
+name = "gnn-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["GNN Code Intelligence Team"]
+description = "CLI interface for GNN Code Intelligence System"
+license = "MIT"
+
+[[bin]]
+name = "gnn-intel"
+path = "src/main.rs"
+
+[dependencies]
+# Workspace crates
+sweep = { path = "../sweep" }
+gnn-parser = { path = "../parser" }
+gnn-core = { path = "../gnn-core" }
+gnn-head = { path = "../gnn-head" }
+gnn-experts = { path = "../gnn-experts" }
+
+# CLI framework
+clap = { version = "4", features = ["derive", "cargo", "color", "suggestions"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+
+# Terminal UI
+indicatif = "0.17"
+console = "0.15"
+colored = "2"
+comfy-table = "7"
+
+# Configuration
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Utilities
+chrono = "0.4"
+walkdir = "2"
+rayon = "1.8"
+petgraph = "0.6"
+bincode = "1"
+reqwest = { version = "0.11", features = ["json"] }
+
+# For WASM runtime integration
+gnn-wasm-runtime = { path = "../wasm-runtime", optional = true }
+
+# Random for training
+rand = { version = "0.8", features = ["std_rng"] }
+
+[features]
+default = []
+wasm = ["gnn-wasm-runtime"]
+
+[dev-dependencies]
+tempfile = "3"
+assert_cmd = "2"
+predicates = "3"

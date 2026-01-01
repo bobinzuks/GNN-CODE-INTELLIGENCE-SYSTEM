@@ -1,0 +1,55 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# WASM
+/pkg/
+/wasm-pack.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Data directories
+/data/maps/*.map
+/data/graphs/*.bin
+/models/*.bin
+/models/experts/*.bin
+
+# Logs
+*.log
+logs/
+
+# Configuration
+gnn-intel.toml
+!examples/gnn-intel.toml.example
+
+# Build artifacts
+*.wasm
+*.js.map
+
+# Cache
+.cache/
+*.cache
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Python (if used for testing)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Node (if used for WASM testing)
+node_modules/
+package-lock.json
